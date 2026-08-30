@@ -1,0 +1,25 @@
+# Operating system
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Office temporary files
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Working copies of the report — only the published PDF belongs in docs/
+*.docx
+!docs/*.docx
+
+# Anything that could carry a real secret
+*.key
+*.pem
+*.env
+secrets.*
