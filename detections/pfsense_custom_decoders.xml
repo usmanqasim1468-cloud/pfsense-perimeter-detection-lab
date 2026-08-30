@@ -1,0 +1,65 @@
+<!--
+  pfSense filterlog decoders for Wazuh
+  ===================================================================
+  Deploy to : /var/ossec/etc/decoders/pfsense_custom_decoders.xml
+  Ownership : sudo chown wazuh:wazuh <file>
+  Reload    : sudo /var/ossec/bin/wazuh-analysisd -t
+              sudo systemctl restart wazuh-manager
+
+  WHY THIS FILE EXISTS
+  ____________________
+  Wazuh ships a pfSense decoder, and it cannot match these messages.
+
+  This firewall sends no hostname field. A message in BSD syslog format is
+  expected to carry a priority marker, a timestamp, a hostname, a program
+  name and then the body, and the pre-decoding stage reads those fields by
+  position. With the hostname absent, the pre-decoder records the program
+  name as the hostname and finds no program name at all. The shipped
+  decoder identifies these messages by program name, so it never matches
+  and phase two reports "No decoder matched" for a message that arrived
+  perfectly.
+
+  These decoders identify the message by its STRUCTURE instead. Every
+  filterlog line contains the literal ",match," and nothing else the
+  firewall sends does, so that string is a reliable fingerprint that
+  survives the sender's choices about optional fields.
+
+  PATTERN SYNTAX WARNING
+  ______________________
+  Wazuh's default expression engine is not PCRE. A plain full stop is a
+  literal dot, \. means any character, and square bracket character
+  classes are NOT supported and silently match nothing. Counting comma
+  separated fields with \S*, and extracting with (\S+) avoids the problem
+  entirely.
+
+  KNOWN IMPERFECTIONS (documented rather than hidden)
+  ___________________________________________________
+  * interface decodes as ",,1787924727,em1" rather than "em1" because the
+    child pattern is one field out.
+  * For messages without ports the source port decodes as "request",
+    because the ports variant matches ICMP lines it should not. The proper
+    fix is a tighter pre-match on the child rather than relying on order.
+  Every field the rules act on - action, direction, protocol, srcip and
+  dstip - decodes correctly.
+-->
+
+<!-- Parent: identifies the message by structure, extracts nothing. -->
+<decoder name="pfsense-filterlog">
+  <prematch>,match,</prematch>
+</decoder>
+
+<!-- Messages carrying ports (TCP, UDP).
+     MUST be listed first: decoding stops at the first child that matches. -->
+<decoder name="pfsense-filterlog-ports">
+  <parent>pfsense-filterlog</parent>
+  <regex>,(\S+),match,(\S+),(\S+),4,\S*,\S*,\S*,\S*,\S*,\S*,\S*,(\S*),\S*,(\S*),(\S*),(\S*),(\S*),</regex>
+  <order>interface,action,direction,protocol,srcip,dstip,srcport,dstport</order>
+</decoder>
+
+<!-- Messages without ports (ICMP), which end with a type and a sequence
+     number instead of a source and destination port. -->
+<decoder name="pfsense-filterlog-noports">
+  <parent>pfsense-filterlog</parent>
+  <regex>,(\S+),match,(\S+),(\S+),4,\S*,\S*,\S*,\S*,\S*,\S*,\S*,(\S*),\S*,(\S*),(\S*),</regex>
+  <order>interface,action,direction,protocol,srcip,dstip</order>
+</decoder>
